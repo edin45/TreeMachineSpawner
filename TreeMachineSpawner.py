@@ -13,6 +13,7 @@ import os
 from bpy.types import Panel, Operator, AddonPreferences, PropertyGroup
 from bpy.props import StringProperty, IntProperty, BoolProperty, PointerProperty
 import bpy.utils.previews
+import math
 
 # Global variables
 preview_collections = {}
@@ -52,6 +53,10 @@ class OBJECT_PG_library_settings(PropertyGroup):
     )
     active_tree_type : StringProperty(
         default="deciduous",
+    )
+
+    resolution : StringProperty(
+        default="4k",
     )
 
 def load_object_list(context):
@@ -94,7 +99,7 @@ def load_object_list(context):
             #     print("dfsafdsf: " + str(loaded_collection.objects));
             for obj_name in data_from.objects:
                 # Load preview image
-                image_path = os.path.join(preview_dir, obj_name.replace(" (Deciduous)","").replace(" (Coniferous)","") + ".jpg")
+                image_path = os.path.join(preview_dir, obj_name.replace(" (1k)","").replace(" (2k)","").replace(" (4k)","").replace(" (8k)","").replace(" (Max)","") + ".png")
                     
                 if obj_name not in pcoll:
                     if os.path.exists(image_path):
@@ -111,6 +116,7 @@ def load_object_list(context):
                     # else:
                     #     object_list[collection.name] = obj_name
                     # print("object_list_1: " + str(object_list))
+        object_list.sort()
         # print(object_list)
         
         return True
@@ -162,6 +168,8 @@ class OBJECT_OT_library_spawn(Operator):
         
         # Append the object
         try:
+            collections_before = set(bpy.data.collections.keys())
+
             # Specify 'Object' as the data type
             inner_path = 'Object'
             bpy.ops.wm.append(
@@ -172,12 +180,35 @@ class OBJECT_OT_library_spawn(Operator):
             obj = bpy.context.selected_objects[0]  # Will get the selected object after append
 
             # Get cursor location
-            cursor_loc = bpy.context.scene.cursor.location
+            # cursor_loc = bpy.context.scene.cursor.location
 
             # Set the object's location to the cursor location
-            obj.location = cursor_loc
+            # obj.location = cursor_loc
+
+            obj.matrix_world.translation = bpy.context.scene.cursor.location
+
+            # Step 3: Get collections after appending
+            collections_after = set(bpy.data.collections.keys())
+
+            # Step 4: Identify newly added collections
+            new_collections = collections_after - collections_before
+
+            # Step 5: Disable new collections in the active view layer
+            layer_collection = bpy.context.view_layer.layer_collection
+
+            def disable_collection_in_view_layer(target_collection, layer_coll):
+                if layer_coll.collection == target_collection:
+                    layer_coll.exclude = True  # This hides the collection
+                for child in layer_coll.children:
+                    disable_collection_in_view_layer(target_collection, child)
+
+            for col_name in new_collections:
+                collection = bpy.data.collections.get(col_name)
+                if collection:
+                    disable_collection_in_view_layer(collection, layer_collection)
 
             self.report({'INFO'}, f"Appended object: {obj_name}")
+            
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Error appending object: {e}")
@@ -185,22 +216,22 @@ class OBJECT_OT_library_spawn(Operator):
 
 class OBJECT_OT_library_refresh(Operator):
     bl_idname = "object.library_refresh"
-    bl_label = "Refresh Object Library"
-    bl_description = "Refresh the object library"
+    bl_label = "Refresh Tree Machine Library"
+    bl_description = "Refresh the tree machine library"
     
     def execute(self, context):
         if load_object_list(context):
-            self.report({'INFO'}, "Object library refreshed")
+            self.report({'INFO'}, "Tree Machine library refreshed")
         else:
-            self.report({'ERROR'}, "Failed to refresh object library")
+            self.report({'ERROR'}, "Failed to refresh tree machine library")
         return {'FINISHED'}
 
 class OBJECT_PT_library_panel(Panel):
-    bl_label = "Object Library"
+    bl_label = "Tree Machine"
     bl_idname = "OBJECT_PT_library_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Object Library"
+    bl_category = "Tree Machine"
 
     def draw(self, context):
         layout = self.layout
@@ -247,6 +278,8 @@ class OBJECT_PT_library_panel(Panel):
         # Create grid layout
         grid = layout.grid_flow(columns=grid_columns, even_columns=True, even_rows=True)
         
+        
+
         for obj_name in object_list[settings.active_tree_type]:
             # Create a column for each object
             col = grid.column(align=True)
@@ -259,6 +292,8 @@ class OBJECT_PT_library_panel(Panel):
                 depress=(settings.selected_object == obj_name)
             )
             op.object_name = obj_name
+
+            # print(f"obj_name {obj_name}")
             
             # Add label below the image
             col.label(text=obj_name, icon='NONE')
@@ -273,12 +308,12 @@ class OBJECT_OT_library_show_popup(Operator):
         return {'FINISHED'}
 
 class OBJECT_OT_SetTreeType(Operator):
-    bl_idname = "object.selected_tree_type"
-    bl_label = "Set Tree Type"
-    tree_type: bpy.props.StringProperty()
+    bl_idname = "object.resolution"
+    bl_label = "Set Tree Resolution"
+    resolution: bpy.props.StringProperty()
     
     def execute(self, context):
-        context.scene.object_library_settings.active_tree_type = self.tree_type
+        context.scene.object_library_settings.resolution = self.resolution
         return {'FINISHED'}
 
 class OBJECT_PT_library_popup(Panel):
@@ -286,7 +321,7 @@ class OBJECT_PT_library_popup(Panel):
     bl_idname = "OBJECT_PT_library_popup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'WINDOW'
-    bl_ui_units_x = 60
+    bl_ui_units_x = 70
     bl_ui_units_y = 60
     # bl_options = {'INSTANCED'}
 
@@ -351,8 +386,11 @@ class OBJECT_PT_library_popup(Panel):
         
         row = main_col.row()
 
-        row.operator("object.selected_tree_type", text="Deciduous", depress=settings.active_tree_type=="deciduous").tree_type = 'deciduous'
-        row.operator("object.selected_tree_type", text="Coniferous", depress=settings.active_tree_type=="coniferous").tree_type = 'coniferous'
+        row.operator("object.resolution", text="Max (8k+)", depress=settings.resolution=="Max").resolution = 'Max'
+        row.operator("object.resolution", text="8k", depress=settings.resolution=="8k").resolution = '8k'
+        row.operator("object.resolution", text="4k", depress=settings.resolution=="4k").resolution = '4k'
+        row.operator("object.resolution", text="2k", depress=settings.resolution=="2k").resolution = '2k'
+        row.operator("object.resolution", text="1k", depress=settings.resolution=="1k").resolution = '1k'
 
         layout.separator()
 
@@ -362,11 +400,24 @@ class OBJECT_PT_library_popup(Panel):
         # col.ui_units_y = 3
         
         # Create grid layout
-        grid = layout.grid_flow(columns=4, even_columns=True, even_rows=True)
+        grid = layout.grid_flow(columns=5, even_columns=True, even_rows=True)
+        # col1 = layout.column(align=True)
+        # grid = layout.row(align=True)
+        
+        # i = 0
+
+        # while i < math.ceil(len(object_list) / 5):
+        #     row = layout.row(align=True)
+        #     x = 0
+        #     while x < 5:
+                
+        #         x+=1 
+
+        #     i+=1
         
         for obj_name in object_list:
             # Create a column for each object
-            if (settings.active_tree_type == "deciduous" and "Deciduous" in obj_name) or (settings.active_tree_type == "coniferous" and "Coniferous" in obj_name):
+            if settings.resolution in obj_name:
                 col = grid.column(align=True)
                 
                 # Add button with preview image
@@ -383,6 +434,8 @@ class OBJECT_PT_library_popup(Panel):
                 library_spawn_operator.object_to_append = obj_name
                 # Add label below the image
                 # col.label(text=obj_name, icon='NONE')
+                # print(f"obj_name: {obj_name}")
+            # i+=1
 
 addon_keymaps = []
 
@@ -393,7 +446,7 @@ def register():
     bpy.utils.register_class(OBJECT_OT_library_select)
     bpy.utils.register_class(OBJECT_OT_library_spawn)
     bpy.utils.register_class(OBJECT_OT_library_refresh)
-    bpy.utils.register_class(OBJECT_PT_library_panel)
+    # bpy.utils.register_class(OBJECT_PT_library_panel)
     bpy.utils.register_class(OBJECT_OT_library_show_popup)
     bpy.utils.register_class(OBJECT_PT_library_popup)
     bpy.utils.register_class(OBJECT_OT_SetTreeType)
@@ -425,7 +478,7 @@ def unregister():
     # Unregister classes
     bpy.utils.unregister_class(OBJECT_PT_library_popup)
     bpy.utils.unregister_class(OBJECT_OT_library_show_popup)
-    bpy.utils.unregister_class(OBJECT_PT_library_panel)
+    # bpy.utils.unregister_class(OBJECT_PT_library_panel)
     bpy.utils.unregister_class(OBJECT_OT_library_refresh)
     bpy.utils.unregister_class(OBJECT_OT_library_spawn)
     bpy.utils.unregister_class(OBJECT_OT_library_select)
