@@ -1,12 +1,23 @@
-bl_info = {
-    "name": "Tree Machine Spawner",
-    "author": "Edin Spiegel",
-    "version": (1, 0),
-    "blender": (3, 0, 0),
-    "location": "View3D > Tree Machine Spawner (Ctrl+T)",
-    "description": "Spawner for the Tree Machine Trees",
-    "category": "Object",
-}
+'''
+Copyright (C) 2025 Edin Spiegel
+
+apps4trainers@gmail.com
+
+Created by Edin Spiegel. This file is part of a Blender add-on.
+
+    This Blender Add-on is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation; either version 3
+    of the License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+'''
 
 import bpy
 import os
@@ -20,7 +31,7 @@ preview_collections = {}
 object_list = []
 
 class ObjectLibraryPreferences(AddonPreferences):
-    bl_idname = __name__
+    bl_idname = __name__.split(".")[0]  # Gets the parent module name
 
     library_path: StringProperty(
         name="Library File Path",
@@ -40,10 +51,8 @@ class ObjectLibraryPreferences(AddonPreferences):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "library_path")
-        layout.prop(self, "grid_columns")
+        # layout.prop(self, "grid_columns")
         layout.label(text="Set the path to the Tree Machine Library File")
-        # layout.label(text="Preview images should be in a 'preview_images' folder next to the library file")
-        # layout.label(text="Images should be named 'object_name.jpg'")
 
 class OBJECT_PG_library_settings(PropertyGroup):
     selected_object: StringProperty(
@@ -51,11 +60,11 @@ class OBJECT_PG_library_settings(PropertyGroup):
         default="",
         description="Currently selected object"
     )
-    active_tree_type : StringProperty(
+    active_tree_type: StringProperty(
         default="deciduous",
     )
 
-    resolution : StringProperty(
+    resolution: StringProperty(
         default="4k",
     )
 
@@ -65,7 +74,7 @@ def load_object_list(context):
     object_list = []
     
     # Get addon preferences
-    addon_prefs = context.preferences.addons[__name__].preferences
+    addon_prefs = context.preferences.addons[__name__.split(".")[0]].preferences
     library_path = addon_prefs.library_path
     
     if not library_path or not os.path.exists(library_path):
@@ -90,13 +99,6 @@ def load_object_list(context):
     try:
         # Access objects in the library file without appending them
         with bpy.data.libraries.load(library_path, link=False) as (data_from, data_to):
-            # Generate items for each object
-            # data_to.collections = data_from.collections
-            # print(f"data_from.collections - {data_from.collections}")
-            # for collection in data_from.collections:
-            #     # if obj.name in collection.objects:
-            #     loaded_collection = bpy.data.collections.get(collection)
-            #     print("dfsafdsf: " + str(loaded_collection.objects));
             for obj_name in data_from.objects:
                 # Load preview image
                 image_path = os.path.join(preview_dir, obj_name.replace(" (1k)","").replace(" (2k)","").replace(" (4k)","").replace(" (8k)","").replace(" (Max)","") + ".png")
@@ -109,15 +111,9 @@ def load_object_list(context):
                         pcoll.load(obj_name, os.path.join(os.path.dirname(__file__), "blank.png"), 'IMAGE')
                         print(f"Preview image not found: {image_path}")
                     
-                    # Add item to object list
+                # Add item to object list
                 object_list.append(obj_name)
-                    # if collection.name in object_list:
-                    #     object_list[collection.name].append(obj_name)
-                    # else:
-                    #     object_list[collection.name] = obj_name
-                    # print("object_list_1: " + str(object_list))
         object_list.sort()
-        # print(object_list)
         
         return True
     except Exception as e:
@@ -152,14 +148,13 @@ class OBJECT_OT_library_spawn(Operator):
         # Get the selected object
         settings = context.scene.object_library_settings
         obj_name = self.object_to_append
-        #settings.selected_object
         
         if not obj_name:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
         
         # Get the library path from preferences
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[__name__.split(".")[0]].preferences
         library_path = addon_prefs.library_path
         
         if not library_path or not os.path.exists(library_path):
@@ -178,12 +173,6 @@ class OBJECT_OT_library_spawn(Operator):
                 filename=obj_name
             )
             obj = bpy.context.selected_objects[0]  # Will get the selected object after append
-
-            # Get cursor location
-            # cursor_loc = bpy.context.scene.cursor.location
-
-            # Set the object's location to the cursor location
-            # obj.location = cursor_loc
 
             obj.matrix_world.translation = bpy.context.scene.cursor.location
 
@@ -236,13 +225,13 @@ class OBJECT_PT_library_panel(Panel):
     def draw(self, context):
         layout = self.layout
         settings = context.scene.object_library_settings
-        addon_prefs = context.preferences.addons[__name__].preferences
+        addon_prefs = context.preferences.addons[__name__.split(".")[0]].preferences
         
         # Check if library path is set
         if not addon_prefs.library_path or not os.path.exists(addon_prefs.library_path):
             layout.label(text="No library file set")
             layout.label(text="Set path in Preferences > Add-ons")
-            layout.operator("wm.addon_prefs_show", text="Open Preferences").module = __name__
+            layout.operator("wm.addon_prefs_show", text="Open Preferences").module = __name__.split(".")[0]
             return
         
         # Refresh button
@@ -273,30 +262,27 @@ class OBJECT_PT_library_panel(Panel):
                 return
         
         pcoll = preview_collections["thumbnail_previews"]
-        grid_columns = addon_prefs.grid_columns
+        grid_columns = 3
         
         # Create grid layout
         grid = layout.grid_flow(columns=grid_columns, even_columns=True, even_rows=True)
         
-        
-
-        for obj_name in object_list[settings.active_tree_type]:
-            # Create a column for each object
-            col = grid.column(align=True)
-            
-            # Add button with preview image
-            op = col.operator(
-                "object.library_select", 
-                text="", 
-                icon_value=pcoll[obj_name].icon_id,
-                depress=(settings.selected_object == obj_name)
-            )
-            op.object_name = obj_name
-
-            # print(f"obj_name {obj_name}")
-            
-            # Add label below the image
-            col.label(text=obj_name, icon='NONE')
+        for obj_name in object_list:
+            if settings.active_tree_type in obj_name:
+                # Create a column for each object
+                col = grid.column(align=True)
+                
+                # Add button with preview image
+                op = col.operator(
+                    "object.library_select", 
+                    text="", 
+                    icon_value=pcoll[obj_name].icon_id,
+                    depress=(settings.selected_object == obj_name)
+                )
+                op.object_name = obj_name
+                
+                # Add label below the image
+                col.label(text=obj_name, icon='NONE')
 
 class OBJECT_OT_library_show_popup(Operator):
     bl_idname = "object.show_library_popup"
@@ -323,34 +309,18 @@ class OBJECT_PT_library_popup(Panel):
     bl_region_type = 'WINDOW'
     bl_ui_units_x = 70
     bl_ui_units_y = 60
-    # bl_options = {'INSTANCED'}
-
-    # def draw_header(self, context):
-    #     layout = self.layout
-
-    #     layout.label(text="Trees Type:")
-
-    #     row = layout.row()
-
-    #     row.operator("object.selected_tree_type", text="Deciduous", depress=settings.active_tree_type=="deciduous").tree_type = 'deciduous'
-    #     row.operator("object.selected_tree_type", text="Coniferous", depress=settings.active_tree_type=="coniferous").tree_type = 'coniferous'
     
     def draw(self, context):
         layout = self.layout
         settings = context.scene.object_library_settings
-        addon_prefs = context.preferences.addons[__name__].preferences
-
-        # layout.template_header()
+        addon_prefs = context.preferences.addons[__name__.split(".")[0]].preferences
 
         # Check if library path is set
         if not addon_prefs.library_path or not os.path.exists(addon_prefs.library_path):
             layout.label(text="No library file set")
             layout.label(text="Set path in Preferences > Add-ons")
-            layout.operator("wm.addon_prefs_show", text="Open Preferences").module = __name__
+            layout.operator("wm.addon_prefs_show", text="Open Preferences").module = __name__.split(".")[0]
             return
-        
-        # Refresh button
-        # layout.operator("object.library_refresh", text="Refresh Library", icon='FILE_REFRESH')
         
         # Display grid of object previews
         global object_list
@@ -360,28 +330,7 @@ class OBJECT_PT_library_popup(Panel):
                 return
         
         pcoll = preview_collections["thumbnail_previews"]
-        # grid_columns = addon_prefs.grid_columns
         
-        # Add a row for the selected object and spawn button
-        # if settings.selected_object:
-        #     box = layout.box()
-        #     row = box.row()
-            
-        #     # Left side: preview image
-        #     col_left = row.column()
-        #     col_left.template_icon(icon_value=pcoll[settings.selected_object].icon_id, scale=10)
-            
-        #     # Right side: info and button
-        #     col_right = row.column()
-        #     col_right.label(text=f"Selected: {settings.selected_object}")
-        #     col_right.separator()
-        #     col_right.operator("object.library_spawn", text=f"Spawn {settings.selected_object}", icon='IMPORT')
-        
-        # layout.separator()
-        
-
-        
-
         main_col = layout.column(align=True)
         
         row = main_col.row()
@@ -393,108 +342,15 @@ class OBJECT_PT_library_popup(Panel):
         row.operator("object.resolution", text="1k", depress=settings.resolution=="1k").resolution = '1k'
 
         layout.separator()
-
-        # layout.label(text="Trees:")
-
-        # col = layout.column()
-        # col.ui_units_y = 3
         
         # Create grid layout
         grid = layout.grid_flow(columns=5, even_columns=True, even_rows=True)
-        # col1 = layout.column(align=True)
-        # grid = layout.row(align=True)
-        
-        # i = 0
-
-        # while i < math.ceil(len(object_list) / 5):
-        #     row = layout.row(align=True)
-        #     x = 0
-        #     while x < 5:
-                
-        #         x+=1 
-
-        #     i+=1
         
         for obj_name in object_list:
             # Create a column for each object
             if settings.resolution in obj_name:
                 col = grid.column(align=True)
                 
-                # Add button with preview image
-                # op = col.operator(
-                #     "object.library_select", 
-                #     text="", 
-                #     icon_value=pcoll[obj_name].icon_id,
-                #     depress=(settings.selected_object == obj_name)
-                # )
-                # op.object_name = obj_name
-                
                 col.template_icon(icon_value=pcoll[obj_name].icon_id,scale=10)
                 library_spawn_operator = col.operator("object.library_spawn", text=f"Spawn " + obj_name.replace(" (Deciduous)","").replace(" (Coniferous)",""), icon='IMPORT') 
                 library_spawn_operator.object_to_append = obj_name
-                # Add label below the image
-                # col.label(text=obj_name, icon='NONE')
-                # print(f"obj_name: {obj_name}")
-            # i+=1
-
-addon_keymaps = []
-
-def register():
-    # Register classes
-    bpy.utils.register_class(ObjectLibraryPreferences)
-    bpy.utils.register_class(OBJECT_PG_library_settings)
-    bpy.utils.register_class(OBJECT_OT_library_select)
-    bpy.utils.register_class(OBJECT_OT_library_spawn)
-    bpy.utils.register_class(OBJECT_OT_library_refresh)
-    # bpy.utils.register_class(OBJECT_PT_library_panel)
-    bpy.utils.register_class(OBJECT_OT_library_show_popup)
-    bpy.utils.register_class(OBJECT_PT_library_popup)
-    bpy.utils.register_class(OBJECT_OT_SetTreeType)
-    
-    # Register properties
-    bpy.types.Scene.object_library_settings = PointerProperty(type=OBJECT_PG_library_settings)
-
-    # bpy.types.Scene.active_tree_type = PointerProperty(type=OBJECT_PG_library_settings)
-    
-    # Register keymapping
-    wm = bpy.context.window_manager
-    kc = wm.keyconfigs.addon
-    if kc:
-        km = kc.keymaps.new(name="3D View", space_type="VIEW_3D")
-        kmi = km.keymap_items.new(
-            "object.show_library_popup", 
-            type='T', 
-            value='PRESS', 
-            ctrl=True
-        )
-        addon_keymaps.append((km, kmi))
-
-def unregister():
-    # Remove keymapping
-    for km, kmi in addon_keymaps:
-        km.keymap_items.remove(kmi)
-    addon_keymaps.clear()
-    
-    # Unregister classes
-    bpy.utils.unregister_class(OBJECT_PT_library_popup)
-    bpy.utils.unregister_class(OBJECT_OT_library_show_popup)
-    # bpy.utils.unregister_class(OBJECT_PT_library_panel)
-    bpy.utils.unregister_class(OBJECT_OT_library_refresh)
-    bpy.utils.unregister_class(OBJECT_OT_library_spawn)
-    bpy.utils.unregister_class(OBJECT_OT_library_select)
-    bpy.utils.unregister_class(OBJECT_PG_library_settings)
-    bpy.utils.unregister_class(OBJECT_OT_SetTreeType)
-    bpy.utils.unregister_class(ObjectLibraryPreferences)
-    
-    # Delete properties
-    del bpy.types.Scene.object_library_settings
-    # del bpy.types.Scene.active_tree_type
-    
-    # Clear preview collections
-    global preview_collections
-    for pcoll in preview_collections.values():
-        bpy.utils.previews.remove(pcoll)
-    preview_collections.clear()
-
-if __name__ == "__main__":
-    register()
